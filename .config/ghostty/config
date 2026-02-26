@@ -19,15 +19,11 @@ scrollback-limit = 3023
 
 # Terminal features
 mouse-hide-while-typing = true
-copy-on-select = true
+copy-on-select = false
 confirm-close-surface = false
 
 # Disable annoying copied to clipboard notifications
 app-notifications = no-clipboard-copy
-
-clipboard-read = allow
-clipboard-write = allow
-clipboard-paste-protection = false
 
 # Key bindings for common actions
 keybind = ctrl+c=copy_to_clipboard
@@ -54,4 +50,4 @@ keybind = shift+enter=text:\n
 gtk-single-instance = true
 
 # Dank color generation
-config-file = ./config-dankcolors
+theme = dankcolors
