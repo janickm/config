@@ -206,3 +206,4 @@ pyrightconfig.json
 
 # Ignore opencode AGENTS.md by default
 AGENTS.md
+CLAUDE.md
