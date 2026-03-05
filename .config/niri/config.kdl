@@ -5,8 +5,8 @@
 config-notification {
     disable-failed
 }
-// Outputs from existing configuration
 
+// Outputs from existing configuration
 output "eDP-1" {
     mode "3840x2400@59.994"
     scale 2.0
@@ -35,6 +35,7 @@ output "LG Electronics 27GL850 909NTUWF4718" {
   focus-at-startup
 }
 
+
 gestures {
     hot-corners {
         off
@@ -53,8 +54,24 @@ input {
             variant "us"
             options "caps:backspace"
         }
+            // You can set rules, model, layout, variant and options.
+            // For more information, see xkeyboard-config(7).
+
+            // For example:
+            // layout "us,ru"
+            // options "grp:win_space_toggle,compose:ralt,ctrl:nocaps"
+
+            // If this section is empty, niri will fetch xkb settings
+            // from org.freedesktop.locale1. You can control these using
+            // localectl set-x11-keymap. }
+
+        // Enable numlock on startup, omitting this setting disables it.
         numlock
     }
+
+    // Next sections include libinput settings.
+    // Omitting settings disables them, or leaves them at their default values.
+    // All commented-out settings here are examples, not defaults.
     touchpad {
         // off
         tap
@@ -76,6 +93,7 @@ input {
         // disabled-on-external-mouse
         // middle-emulation
     }
+
     mouse {
         // off
         // natural-scroll
@@ -89,6 +107,7 @@ input {
         // left-handed
         // middle-emulation
     }
+
     trackpoint {
         // off
         // natural-scroll
@@ -126,14 +145,23 @@ input {
         // calibration-matrix 1.0 0.0 0.0 0.0 1.0 0.0
     }
 
-    // disable-power-key-handling
+    // Uncomment this to make the mouse warp to the center of newly focused windows.
     // warp-mouse-to-focus
+
+    // Focus windows and outputs automatically when moving the mouse into them.
+    // Setting max-scroll-amount="0%" makes it work only on windows already fully on screen.
     focus-follows-mouse max-scroll-amount="0%"
     workspace-auto-back-and-forth
 
     // mod-key "Super"
     // mod-key-nested "Alt"
 }
+// You can configure outputs by their name, which you can find
+// by running `niri msg outputs` while inside a niri instance.
+// The built-in laptop monitor is usually called "eDP-1".
+// Find more information on the wiki:
+// https://github.com/YaLTeR/niri/wiki/Configuration:-Outputs
+// Remember to uncomment the node by removing "/-"!
 
 // Settings that influence how windows are positioned and sized.
 // Find more information on the wiki:
@@ -229,16 +257,22 @@ overview {
 // which may be more convenient to use.
 // See the binds section below for more spawn examples.
 // This line starts waybar, a commonly used bar for Wayland compositors.
-spawn-at-startup "bash" "-c" "wl-paste --watch cliphist store &"
+// spawn-at-startup "bash" "-c" "wl-paste --watch cliphist store &"
+
 spawn-at-startup "dms" "run"
+
 environment {
   XDG_CURRENT_DESKTOP "niri"
 }
+
 hotkey-overlay {
     skip-at-startup
 }
+
 prefer-no-csd
+
 screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
+
 animations {
     workspace-switch {
         spring damping-ratio=0.80 stiffness=523 epsilon=0.0001
@@ -300,9 +334,14 @@ window-rule {
     match app-id=r#"^gnome-calculator$"#
     match app-id=r#"^galculator$"#
     match app-id=r#"^blueman-manager$"#
-    match app-id=r#"^steam$"#
+    match app-id=r#"^org\.gnome\.Nautilus$"#
     match app-id=r#"^xdg-desktop-portal$"#
     open-floating true
+}
+window-rule {
+    match app-id=r#"^steam$"# title=r#"^notificationtoasts_\d+_desktop$"#
+    default-floating-position x=10 y=10 relative-to="bottom-right"
+    open-focused false
 }
 window-rule {
     match app-id=r#"^org\.wezfurlong\.wezterm$"#
@@ -330,6 +369,7 @@ debug {
     honor-xdg-activation-with-invalid-serial
 }
 
+// Override to disable super+tab
 recent-windows {
     binds {
         Alt+Tab          { next-window; }
@@ -346,6 +386,8 @@ include "dms/colors.kdl"
 include "dms/layout.kdl"
 include "dms/alttab.kdl"
 include "dms/binds.kdl"
+include "dms/outputs.kdl"
+include "dms/cursor.kdl"
 
 // rules for terminal
 window-rule {
