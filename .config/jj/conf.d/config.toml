@@ -34,3 +34,6 @@ concat(
 backend = "gpg"
 key = "A85C4836"
 behavior = "own"
+
+[git]
+sign-on-push = true
