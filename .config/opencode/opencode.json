@@ -1,6 +1,147 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "keybinds": {
-    "command_list": "ctrl+l"
-  }
+  "plugin": [
+    "superpowers@git+https://github.com/obra/superpowers.git#v5.0.5"
+  ],
+  "provider": {
+    "nvidia-inference": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "NVIDIA",
+      "options": {
+        "baseURL": "https://inference-api.nvidia.com/v1"
+      },
+      "models": {
+        "opus-4.6": {
+          "id": "azure/anthropic/claude-opus-4-6",
+          "name": "Claude 4.6 Opus",
+          "reasoning": true,
+          "options": {
+            "reasoning_effort": "high"
+          }
+        },
+        "opus-4-5": {
+          "id": "azure/anthropic/claude-opus-4-5",
+          "name": "Claude 4.5 Opus",
+          "reasoning": true
+        },
+        "sonnet-4-6": {
+          "id": "azure/anthropic/claude-sonnet-4-6",
+          "name": "Claude 4.6 Sonnet"
+        },
+        "sonnet-4-5": {
+          "id": "azure/anthropic/claude-sonnet-4-5",
+          "name": "Claude 4.5 Sonnet"
+        },
+        "haiku-4-5": {
+          "id": "azure/anthropic/claude-haiku-4-5",
+          "name": "Claude 4.5 Haiku"
+        },
+        "gpt-5.4": {
+          "id": "azure/openai/gpt-5.4",
+          "name": "GPT-5.4"
+        },
+        "gpt-5.2-codex": {
+          "id": "azure/openai/gpt-5.2-codex",
+          "name": "GPT-5.2 Codex"
+        },
+        "gpt-5.1-codex": {
+          "id": "azure/openai/gpt-5.1-codex",
+          "name": "GPT-5.1 Codex"
+        },
+        "gpt-5.1-codex-max": {
+          "id": "azure/openai/gpt-5.1-codex-max",
+          "name": "GPT-5.1 Codex Max",
+          "reasoning": true
+        },
+        "gpt-5": {
+          "id": "azure/openai/gpt-5",
+          "name": "GPT-5"
+        },
+        "gpt-4.1": {
+          "id": "azure/openai/gpt-4.1",
+          "name": "GPT-4.1"
+        },
+        "gpt-4.1-mini": {
+          "id": "azure/openai/gpt-4.1-mini",
+          "name": "GPT-4.1 Mini"
+        },
+        "o3": {
+          "id": "azure/openai/o3",
+          "name": "OpenAI o3",
+          "reasoning": true
+        },
+        "o4-mini": {
+          "id": "azure/openai/o4-mini",
+          "name": "OpenAI o4-mini",
+          "reasoning": true
+        },
+        "o3-mini": {
+          "id": "azure/openai/o3-mini",
+          "name": "OpenAI o3-mini",
+          "reasoning": true
+        },
+        "gemini-3-pro": {
+          "id": "gcp/google/gemini-3-pro",
+          "name": "Gemini 3 Pro",
+          "reasoning": true
+        },
+        "gemini-3-flash": {
+          "id": "gcp/google/gemini-3-flash-preview",
+          "name": "Gemini 3 Flash"
+        },
+        "gemini-2.5-pro": {
+          "id": "gcp/google/gemini-2.5-pro",
+          "name": "Gemini 2.5 Pro",
+          "reasoning": true
+        },
+        "gemini-2.5-flash": {
+          "id": "gcp/google/gemini-2.5-flash",
+          "name": "Gemini 2.5 Flash"
+        },
+        "sonar-pro": {
+          "id": "perplexity/perplexity/sonar-pro",
+          "name": "Perplexity Sonar Pro"
+        },
+        "sonar-reasoning-pro": {
+          "id": "perplexity/perplexity/sonar-reasoning-pro",
+          "name": "Sonar Reasoning Pro",
+          "reasoning": true
+        },
+        "nemotron-ultra-253b": {
+          "id": "nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1",
+          "name": "Nemotron Ultra 253B",
+          "reasoning": true
+        },
+        "nemotron-super-49b": {
+          "id": "nvidia/nvidia/llama-3.3-nemotron-super-49b-v1.5",
+          "name": "Nemotron Super 49B"
+        },
+        "nemotron-3-super": {
+          "id": "nvidia/nvidia/nemotron-3-super-v3",
+          "name": "Nemotron 3 Super"
+        },
+        "qwen3-next-80b": {
+          "id": "nvidia/qwen/qwen3-next-80b-a3b-instruct",
+          "name": "Qwen3 Next 80B"
+        },
+        "qwen-235b": {
+          "id": "nvidia/qwen/qwen-235b",
+          "name": "Qwen 235B"
+        },
+        "llama-3.3-70b": {
+          "id": "nvidia/meta/llama-3.3-70b-instruct",
+          "name": "Llama 3.3 70B"
+        },
+        "gpt-oss-120b": {
+          "id": "nvidia/openai/gpt-oss-120b",
+          "name": "GPT-OSS 120B"
+        },
+        "gpt-oss-20b": {
+          "id": "nvidia/openai/gpt-oss-20b",
+          "name": "GPT-OSS 20B"
+        }
+      }
+    }
+  },
+  "model": "nvidia-inference/opus-4.6"
 }

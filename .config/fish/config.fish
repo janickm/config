@@ -22,14 +22,11 @@ end
 
 # Gem path
 if which gem ruby >/dev/null
-
     set -x PATH (ruby -e 'puts Gem.user_dir')/bin $PATH
-
 end
+
 if which gem2.0 ruby2.0 >/dev/null
-
     set -x PATH (ruby2.0 -e 'puts Gem.user_dir')/bin $PATH
-
 end
 
 # ccache path
@@ -57,13 +54,11 @@ set -x PATH $HOME/.cargo/bin $PATH
 
 # fuck
 if which thefuck >/dev/null
-
     eval (thefuck --alias | tr '\n' ';')
 end
 
 # yazi PWD
 if which yazi >/dev/null
-
     function y
         set tmp (mktemp -t "yazi-cwd.XXXXXX")
         yazi $argv --cwd-file="$tmp"
@@ -82,3 +77,7 @@ bind \ew backward-kill-line # alt+w delete to start of line
 
 # opencode
 fish_add_path /home/janickm/.opencode/bin
+
+# bun
+set -x BUN_INSTALL "$HOME/.bun"
+set -x PATH $BUN_INSTALL/bin $PATH
