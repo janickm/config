@@ -16,9 +16,6 @@
           "id": "azure/anthropic/claude-opus-4-6",
           "name": "Claude 4.6 Opus",
           "reasoning": true,
-          "options": {
-            "reasoning_effort": "high"
-          }
         },
         "opus-4-5": {
           "id": "azure/anthropic/claude-opus-4-5",
