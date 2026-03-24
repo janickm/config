@@ -1,7 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "superpowers@git+https://github.com/obra/superpowers.git#v5.0.5"
+    // temporray workaround to use a forked version of superpowers until the PR #885 is mreged / released
+    "superpowers@git+https://github.com/gilangjavier/gilangjavier-superpowers-fork.git#d49360c29553b1e191b5af54abffcbb60470c5aa"
   ],
   "provider": {
     "nvidia-inference": {
