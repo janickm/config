@@ -207,3 +207,7 @@ pyrightconfig.json
 # Ignore opencode AGENTS.md by default
 AGENTS.md
 CLAUDE.md
+
+# Ignore local worktrees / workspaces
+.worktrees/**
+.workspaces/**
