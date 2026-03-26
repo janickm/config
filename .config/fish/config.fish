@@ -2,7 +2,7 @@
 set FISH_CLIPBOARD_CMD cat
 
 # Env vars
-set -x SHELL (which fish)
+set -x SHELL (command -s fish)
 set -x PATH $HOME/.local/bin $PATH
 set -x LD_LIBRARY_PATH $HOME/.local/lib $LD_LIBRARY_PATH
 set -x PROJVC $HOME/ProjVC
@@ -21,24 +21,24 @@ function mc
 end
 
 # Gem path
-if which gem ruby >/dev/null
+if command -q gem; and command -q ruby
     set -x PATH (ruby -e 'puts Gem.user_dir')/bin $PATH
 end
 
-if which gem2.0 ruby2.0 >/dev/null
+if command -q gem2.0; and command -q ruby2.0
     set -x PATH (ruby2.0 -e 'puts Gem.user_dir')/bin $PATH
 end
 
 # ccache path
-if which ccache >/dev/null
+if command -q ccache
     set -x PATH /usr/lib/ccache $PATH
 end
 
-if which zoxide >/dev/null
+if command -q zoxide
     zoxide init fish | source
 end
 
-if which zellij >/dev/null
+if command -q zellij
     zellij setup --generate-completion fish | source
 end
 
@@ -53,12 +53,12 @@ set -x PATH $HOME/.cargo/bin $PATH
 . $HOME/.opam/opam-init/init.fish- >/dev/null 2>/dev/null or true
 
 # fuck
-if which thefuck >/dev/null
+if command -q thefuck
     eval (thefuck --alias | tr '\n' ';')
 end
 
 # yazi PWD
-if which yazi >/dev/null
+if command -q yazi
     function y
         set tmp (mktemp -t "yazi-cwd.XXXXXX")
         yazi $argv --cwd-file="$tmp"
