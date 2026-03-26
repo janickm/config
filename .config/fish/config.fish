@@ -81,3 +81,8 @@ fish_add_path /home/janickm/.opencode/bin
 # bun
 set -x BUN_INSTALL "$HOME/.bun"
 set -x PATH $BUN_INSTALL/bin $PATH
+
+# jj fish prompt (https://github.com/nertzy/fish_jj_prompt)
+set -g fish_jj_prompt_bold false # disable bold text
+set -g fish_jj_prompt_description_length 24 # truncated descriptions
+set -g fish_jj_prompt_show_description true # show description entirely
