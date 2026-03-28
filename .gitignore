@@ -211,3 +211,8 @@ CLAUDE.md
 # Ignore local worktrees / workspaces
 .worktrees/**
 .workspaces/**
+
+# Nix dev shell (local-only, not committed to shared repo)
+shell.nix
+.envrc
+.direnv/
