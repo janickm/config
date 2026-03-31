@@ -49,5 +49,7 @@ keybind = shift+enter=text:\n
 # Rando stuff
 gtk-single-instance = true
 
-# Dank color generation
-theme = dankcolors
+# Theme
+# theme = dankcolors
+config-file = ?auto/theme.ghostty
+theme = Github Dark
