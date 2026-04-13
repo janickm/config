@@ -86,3 +86,9 @@ set -x PATH $BUN_INSTALL/bin $PATH
 set -g fish_jj_prompt_bold false # disable bold text
 set -g fish_jj_prompt_description_length 24 # truncated descriptions
 set -g fish_jj_prompt_show_description true # show description entirely
+
+# nix profile
+if test -e /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+    fish_add_path ~/.nix-profile/bin
+    fish_add_path /nix/var/nix/profiles/default/bin
+end

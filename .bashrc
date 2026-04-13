@@ -271,3 +271,5 @@ export http_proxy=''
 export https_proxy=''
 export ftp_proxy=''
 export socks_proxy=''
+
+if command -v wt >/dev/null 2>&1; then eval "$(command wt config shell init bash)"; fi
