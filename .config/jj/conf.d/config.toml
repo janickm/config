@@ -21,6 +21,9 @@ n = ["new"]
 "diff removed token" = { fg = "bright red", bg = "#400000", underline = false }
 "diff added token" = { fg = "bright green", bg = "#003000", underline = false }
 
+[revsets]
+bookmark-advance-to = "@-"
+
 [templates]
 draft_commit_description = '''
 concat(
