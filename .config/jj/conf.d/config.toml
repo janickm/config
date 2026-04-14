@@ -11,10 +11,9 @@ merge-editor = ":builtin"
 diff-formatter = ["difft", "--color=always", "--sort-paths", "$left", "$right"]
 
 [aliases]
-tug = ["bookmark", "move", "--from", "heads(::@- & bookmarks())", "--to", "@"]
-tug- = ["bookmark", "move", "--from", "heads(::@- & bookmarks())", "--to", "@-"]
 rebase-all = ["rebase", "-s", "roots(trunk()..mutable())", "-d", "trunk()"]
-l = ["log", "-r", "ancestors(reachable(@, mutable()), 2)"]
+l = ["log", "-r", "..@ | trunk()"]
+lm = ["log", "-r", "@ | ancestors(trunk()..(visible_heads() & mine()), 2) | trunk()"]
 n = ["new"]
 
 [colors]
