@@ -1,6 +1,7 @@
 # Font Configuration
 font-size = 11
 font-family = "" # reset previously set font
+font-family = "DejaVuSansM Nerd Font Mono"
 font-family = "DejaVuSansMono Nerd Font Mono"
 
 # Window Configuration
