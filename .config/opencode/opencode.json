@@ -14,11 +14,16 @@
         "opus-4.7": {
           "id": "azure/anthropic/claude-opus-4-7",
           "name": "Claude 4.7 Opus",
-          "reasoning": true,
+          "reasoning": true
         },
         "opus-4.6": {
           "id": "azure/anthropic/claude-opus-4-6",
           "name": "Claude 4.6 Opus",
+          "reasoning": true
+        },
+        "opus-4.6-aws": {
+          "id": "aws/anthropic/bedrock-claude-opus-4-6",
+          "name": "Claude 4.6 Opus (AWS)",
           "reasoning": true,
         },
         "opus-4-5": {
@@ -149,7 +154,7 @@
       }
     }
   },
-  "model": "nvidia-inference/opus-4.6",
+  "model": "nvidia-inference/opus-4.6-aws",
   "skills": {
     "paths": [
       "~/.agents/skills"
