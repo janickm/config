@@ -39,3 +39,6 @@ behavior = "own"
 
 [git]
 sign-on-push = true
+
+[remotes.origin]
+fetch-bookmarks = "~pull-request/*"
