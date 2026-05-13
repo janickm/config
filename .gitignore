@@ -204,9 +204,12 @@ pyrightconfig.json
 # Prevent wiping jj
 .jj/**
 
-# Ignore opencode AGENTS.md by default
+# Ignore AGENTS.md  / agentic stuff by default
 AGENTS.md
 CLAUDE.md
+.opencode/**
+.agents/**
+.cursor/**
 
 # Ignore local worktrees / workspaces
 .worktrees/**
