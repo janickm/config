@@ -5,16 +5,15 @@
 # that can't tolerate any output.  So make sure this doesn't display
 # anything or bad things will happen !
 
-
 # Test for an interactive shell.  There is no need to set anything
 # past this point for scp and rcp, and it's important to refrain from
 # outputting anything in those cases.
-if [[ $- != *i* ]] ; then
-	# Shell is non-interactive.  Be done now!
-	return
+if [[ $- != *i* ]]; then
+  # Shell is non-interactive.  Be done now!
+  return
 fi
 
-if [ -f $HOME/.bashrc_private ] ; then
+if [ -f $HOME/.bashrc_private ]; then
   # We seem to be at work
   . $HOME/.bashrc_private
 fi
@@ -29,7 +28,7 @@ fi
 # git prompt
 if [ -f $HOME/.local/pkg/bash-git-prompt/gitprompt.sh ]; then
   # working with 48eff2e of https://github.com/magicmonty/bash-git-prompt.git
-  export  __GIT_PROMPT_DIR=$HOME/.local/pkg/bash-git-prompt
+  export __GIT_PROMPT_DIR=$HOME/.local/pkg/bash-git-prompt
   source $__GIT_PROMPT_DIR/gitprompt.sh
 
   White="\[\033[00m\]"
@@ -52,7 +51,7 @@ if [ -f $HOME/.local/pkg/bash-git-prompt/gitprompt.sh ]; then
     local s
     s=$(svn info 2>/dev/null)
     if [ $? -eq 0 ]; then
-      s=$(echo -n "${s}" | sed -n -e '/^Revision: \([0-9]*\).*$/s//\1/p' )
+      s=$(echo -n "${s}" | sed -n -e '/^Revision: \([0-9]*\).*$/s//\1/p')
       s=" ${BBlue}[${Magenta}svn:${s}${BBlue}]"
     else
       s=""
@@ -77,7 +76,7 @@ elif [ -f /usr/share/bash-completion/completions/git-prompt ]; then
     local s
     s=$(svn info 2>/dev/null)
     if [ $? -eq 0 ]; then
-      s=svn:$(echo -n "${s}" | sed -n -e '/^Revision: \([0-9]*\).*$/s//\1/p' )
+      s=svn:$(echo -n "${s}" | sed -n -e '/^Revision: \([0-9]*\).*$/s//\1/p')
       s="(${s}) "
     else
       s=$(__git_ps1 "(git:%s) ")
@@ -95,13 +94,11 @@ elif [ -f /usr/share/bash-completion/completions/git-prompt ]; then
   # = martinez@phoenix ~/ProjVC/isomdef  (master=)$
 
   export PS1='\[\033[01;32m\]\u@\h\[\033[01;34m\] \w $(scm_ps1)\$ \[\033[00m\]'
-  # = ph03@janick ~/ProjVC/isomdef (git:master=) $
 
   #export PS1='\[\e[32;1m\](\[\e[01;32m\]\u@\h\[\e[32;1m\])-(\[\e[37;1m\]!\!\[\e[32;1m\])-(\[\e[37;1m\]jobs:\j\[\e[32;1m\])-(\[\e[01;34m\]\w\[\e[32;1m\])\n\[\e[01;34m\]$(scm_ps1) \$ \[\e[0m\]'
   #export PS1="\n\[\e[32;1m\](\[\e[01;32m\]\u@\h\[\e[32;1m\])-(\[\e[37;1m\]!\!\[\e[32;1m\])-(\[\e[37;1m\]jobs:\j\[\e[32;1m\])-(\[\e[37;1m\]\$(/bin/ls -1 | /usr/bin/wc -l | /bin/sed 's: ::g') files, \$(/bin/ls -lah | /bin/grep -m 1 total | /bin/sed 's/total //')b\[\e[32;1m\])\n(\[\e[01;34m\]\w\[\e[32;1m\])\[\e[01;34m\] \$(scm_ps1)\$ \[\e[0m\]"
   #export PS1="\n\[\e[32;1m\](\[\e[01;32m\]\u@\h\[\e[32;1m\])-(\[\e[37;1m\]!\!\[\e[32;1m\])-(\[\e[37;1m\]jobs:\j\[\e[32;1m\])-(\[\e[37;1m\]\$(/bin/ls -1 | /usr/bin/wc -l | /bin/sed 's: ::g') files, \$(/bin/ls -lah | /bin/grep -m 1 total | /bin/sed 's/total //')b\[\e[32;1m\])\n\[\e[01;34m\]\w \$(scm_ps1)\$ \[\e[0m\]"
   # =
-  # (ph03@janick)-(jobs:0)-(~/ProjVC/athene)
   # (! 553) (git:master=) $
 
   export GIT_PS1_SHOWDIRTYSTATE=1
@@ -128,7 +125,7 @@ export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/lib64:/usr/local/lib:$HOME/.
 export MAPLE="/opt/maple"
 
 if [ -f /usr/libexec/mc/mc.sh ]; then
-   . /usr/libexec/mc/mc.sh
+  . /usr/libexec/mc/mc.sh
 fi
 
 export PROJROOT="$HOME/ProjMPI"
@@ -225,8 +222,7 @@ export NINJA_STATUS="[%r/%u/%f/%t] "
 
 #powerline-bash
 export POWERLINE="$HOME/.local/pkg/powerline-bash/powerline-bash.py"
-function _update_ps1()
-{
+function _update_ps1() {
   if [ $COLORTERM ]; then
     if [ -f ${POWERLINE} ]; then
       export PS1="$(${POWERLINE} $?)"
@@ -261,7 +257,7 @@ export GOPATH="$HOME/.local/go"
 export PATH="$GOPATH/bin:$PATH"
 
 # rust path
-if [ -f $HOME/.cargo/env ] ; then
+if [ -f $HOME/.cargo/env ]; then
   . $HOME/.cargo/env
 fi
 
