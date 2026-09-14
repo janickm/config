@@ -222,3 +222,5 @@ CLAUDE.md
 shell.nix
 .envrc
 .direnv/
+
+.sessions/
