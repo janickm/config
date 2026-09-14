@@ -259,7 +259,7 @@ overview {
 // This line starts waybar, a commonly used bar for Wayland compositors.
 // spawn-at-startup "bash" "-c" "wl-paste --watch cliphist store &"
 
-spawn-at-startup "dms" "run"
+// spawn-at-startup "dms" "run"
 
 environment {
   XDG_CURRENT_DESKTOP "niri"
@@ -388,6 +388,7 @@ include "dms/alttab.kdl"
 include "dms/binds.kdl"
 include "dms/outputs.kdl"
 include "dms/cursor.kdl"
+include "dms/windowrules.kdl"
 
 // rules for terminal
 window-rule {
