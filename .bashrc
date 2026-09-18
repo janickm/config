@@ -269,3 +269,16 @@ export ftp_proxy=''
 export socks_proxy=''
 
 if command -v wt >/dev/null 2>&1; then eval "$(command wt config shell init bash)"; fi
+
+# Keep this line: on NVIDIA-managed VDI/Omnistation hosts, the chef recipe
+# vdi::himmelblau ("Add local bin directories to PATH") appends exactly this to
+# ~/.bashrc on every run, roughly every 30 min, which otherwise leaves the
+# dotfiles repo permanently dirty. Its guard is
+#   not_if { File.read("#{home}/.bashrc").include?(".npm-global/bin") }
+# so the string has to be present in THIS file to suppress the append. Putting
+# it in .bashrc_private does not work: chef only inspects .bashrc.
+# Guarded rather than a bare export, so re-sourcing does not stack PATH entries.
+case ":$PATH:" in
+  *":$HOME/.npm-global/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH" ;;
+esac
