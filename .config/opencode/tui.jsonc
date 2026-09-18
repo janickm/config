@@ -1,0 +1,9 @@
+{
+  "$schema": "https://opencode.ai/tui.json",
+  // Declared here rather than left to ~/.local/state/opencode/kv.json, which is
+  // runtime state: it lives behind a symlink to /mnt/data (git refuses paths
+  // "beyond a symbolic link"), and opencode rewrites it on every UI toggle.
+  // Setting it here makes the theme travel with the dotfiles instead.
+  "theme": "tokyonight",
+  "plugin": ["./herdr-tui-session.js"]
+}
