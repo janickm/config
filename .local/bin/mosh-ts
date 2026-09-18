@@ -1,0 +1,55 @@
+#!/bin/bash
+# mosh-ts -- mosh over Tailscale SSH.
+#
+# Gives you a roaming, disconnect-tolerant shell on a host whose sshd refuses
+# your user (e.g. a CIS-hardened box with `AllowUsers admin sysadmin operator`),
+# without touching that hardened config at all. Tailscale SSH does the auth,
+# mosh's UDP rides the tailnet.
+#
+# USAGE
+#   mosh-ts <host> [command ...]
+#
+#   Host may be a MagicDNS name or a 100.x tailnet IP:
+#     mosh-ts omni-lfe-00awt
+#     mosh-ts janickm@omni-lfe-00awt
+#     mosh-ts 100.71.60.14
+#
+# HOW IT WORKS
+#   mosh --ssh=ts-ssh            route the SSH leg through `tailscale ssh`
+#        --experimental-remote-ip=remote
+#                                take the peer IP from $SSH_CONNECTION rather
+#                                than a ProxyCommand, which tailscale lacks
+#   ts-ssh                       strips flags the tailscale CLI rejects
+#
+# REQUIREMENTS
+#   - `tailscale up --ssh` on the REMOTE host (RunSSH: true)
+#   - mosh installed on both ends
+#   - the tailnet ACL must permit ssh to that host. With the default personal
+#     tailnet policy the action is "check", so the FIRST connection from each
+#     source device prints a login.tailscale.com URL to approve in a browser.
+#     Approve once per source device; it is not per session.
+#
+# TROUBLESHOOTING
+#   "Connection closed by UNKNOWN port 65535"
+#       An unapproved check. Run `tailscale ssh <host>` once and click the URL.
+#   "Did not find remote IP address"
+#       ts-ssh is not being used, or --experimental-remote-ip=remote is missing.
+#   "Assertion `s_height > 0' failed"
+#       No real terminal (running under a size-less pty). Run it interactively.
+
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+  sed -n '2,12p' "$0" >&2
+  exit 2
+fi
+
+TS_SSH="$(dirname "$(readlink -f "$0")")/ts-ssh"
+if [ ! -x "$TS_SSH" ]; then
+  echo "mosh-ts: helper not found or not executable: $TS_SSH" >&2
+  exit 1
+fi
+
+HOST="$1"; shift
+
+exec mosh --ssh="$TS_SSH" --experimental-remote-ip=remote "$HOST" ${1+-- "$@"}
