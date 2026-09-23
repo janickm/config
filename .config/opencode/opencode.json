@@ -11,6 +11,37 @@
         "baseURL": "https://inference-api.nvidia.com/v1"
       },
       "models": {
+        "opus-5-5-azure": {
+          "id": "azure/anthropic/claude-opus-5-5",
+          "name": "Claude Opus 5.5 (Azure)",
+          "reasoning": true,
+          "tool_call": true,
+          "attachment": true,
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          }
+        },
+        // AWS is the only route that honours effort (see the output_config note below),
+        // but it carries the 408 flake, so it is not the default.
+        "opus-5-5-aws": {
+          "id": "aws/anthropic/bedrock-claude-opus-5-5",
+          "name": "Claude Opus 5.5 (AWS)",
+          "reasoning": true,
+          "tool_call": true,
+          "attachment": true,
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "variants": {
+            "low":    { "reasoningEffort": "low" },
+            "medium": { "reasoningEffort": "medium" },
+            "high":   { "reasoningEffort": "high" },
+            "xhigh":  { "reasoningEffort": "xhigh" },
+            "max":    { "reasoningEffort": "max" }
+          }
+        },
         "opus-5-azure": {
           "id": "azure/anthropic/claude-opus-5",
           "name": "Claude Opus 5 (Azure)",
@@ -20,12 +51,6 @@
           "limit": {
             "context": 1000000,
             "output": 128000
-          },
-          "variants": {
-            "medium": { "reasoningEffort": "medium" },
-            "low":    { "reasoningEffort": "low" },
-            "high":   { "reasoningEffort": "high" },
-            "max":    { "reasoningEffort": "max" }
           }
         },
         "opus-5-aws": {
@@ -48,12 +73,6 @@
           "limit": {
             "context": 1000000,
             "output": 128000
-          },
-          "variants": {
-            "medium": { "reasoningEffort": "medium" },
-            "low":    { "reasoningEffort": "low" },
-            "high":   { "reasoningEffort": "high" },
-            "max":    { "reasoningEffort": "max" }
           }
         },
         "opus-4-8-aws": {
@@ -76,12 +95,6 @@
           "limit": {
             "context": 1000000,
             "output": 128000
-          },
-          "variants": {
-            "medium": { "reasoningEffort": "medium" },
-            "low":    { "reasoningEffort": "low" },
-            "high":   { "reasoningEffort": "high" },
-            "max":    { "reasoningEffort": "max" }
           }
         },
         "opus-4-7-aws": {
@@ -160,6 +173,26 @@
           "limit": {
             "context": 200000,
             "output": 64000
+          },
+          "variants": {
+            "medium": { "reasoningEffort": "medium" },
+            "low":    { "reasoningEffort": "low" },
+            "high":   { "reasoningEffort": "high" },
+            "max":    { "reasoningEffort": "max" }
+          }
+        },
+        // Accepts reasoning_effort but does not act on it: reasoning_tokens stayed flat
+        // at ~330-440 across minimal/low/high/max, and a bogus value is accepted too.
+        // No variants until the gateway honours it.
+        "gpt-6-astra": {
+          "id": "azure/openai/gpt-6-astra",
+          "name": "GPT-6 Astra",
+          "reasoning": true,
+          "tool_call": true,
+          "attachment": true,
+          "limit": {
+            "context": 1050000,
+            "output": 128000
           }
         },
         "gpt-5.5": {
@@ -224,6 +257,13 @@
           "limit": {
             "context": 400000,
             "output": 128000
+          },
+          "variants": {
+            "medium":  { "reasoningEffort": "medium" },
+            "minimal": { "reasoningEffort": "minimal" },
+            "low":     { "reasoningEffort": "low" },
+            "high":    { "reasoningEffort": "high" },
+            "xhigh":   { "reasoningEffort": "xhigh" }
           }
         },
         "gpt-5.2-codex": {
@@ -235,6 +275,13 @@
           "limit": {
             "context": 400000,
             "output": 128000
+          },
+          "variants": {
+            "medium":  { "reasoningEffort": "medium" },
+            "minimal": { "reasoningEffort": "minimal" },
+            "low":     { "reasoningEffort": "low" },
+            "high":    { "reasoningEffort": "high" },
+            "xhigh":   { "reasoningEffort": "xhigh" }
           }
         },
         "gpt-4.1": {
@@ -284,7 +331,7 @@
           "name": "OpenAI o3-mini",
           "reasoning": true,
           "tool_call": true,
-          "attachment": true,
+          "attachment": false,
           "limit": {
             "context": 200000,
             "output": 100000
@@ -304,6 +351,7 @@
         "gemini-3-flash": {
           "id": "gcp/google/gemini-3-flash-preview",
           "name": "Gemini 3 Flash",
+          "reasoning": true,
           "tool_call": true,
           "attachment": true,
           "limit": {
@@ -325,6 +373,7 @@
         "gemini-2.5-flash": {
           "id": "gcp/google/gemini-2.5-flash",
           "name": "Gemini 2.5 Flash",
+          "reasoning": true,
           "tool_call": true,
           "attachment": true,
           "limit": {
@@ -427,7 +476,7 @@
           "attachment": false,
           "limit": {
             "context": 262144,
-            "output": 128000
+            "output": 32768
           }
         },
         "qwen3-next-80b": {
@@ -443,6 +492,7 @@
         "gpt-oss-120b": {
           "id": "nvidia/openai/gpt-oss-120b",
           "name": "GPT-OSS 120B",
+          "reasoning": true,
           "tool_call": true,
           "attachment": false,
           "limit": {
@@ -453,6 +503,7 @@
         "gpt-oss-20b": {
           "id": "nvidia/openai/gpt-oss-20b",
           "name": "GPT-OSS 20B",
+          "reasoning": true,
           "tool_call": true,
           "attachment": true,
           "limit": {
@@ -463,21 +514,38 @@
       }
     }
   },
-  // Azure, NOT aws: the gateway's AWS/Bedrock route flakes on roughly 8% of streaming
-  // requests, returning HTTP 408 in ~0.6s with `litellm.Timeout: BedrockException:
-  // Connection timed out ... time taken=0.004 seconds`. The message is a red herring --
-  // 0.004s is not a 5s connect timeout, it is the gateway rejecting the request and
-  // mislabelling it. Measured back to back on the same key: aws 3/40 failed, azure 0/40.
-  // The log carried 2450 of these, every single one on opus-5-aws and none on any other
-  // model.
+  // Azure, NOT aws: the gateway's AWS/Bedrock route flakes on a large fraction of
+  // streaming requests, returning HTTP 408 in ~0.6s with `litellm.Timeout:
+  // BedrockException: Connection timed out ... time taken=0.004 seconds`. The message is
+  // a red herring -- 0.004s is not a 5s connect timeout, it is the gateway rejecting the
+  // request and mislabelling it.
+  //
+  // Re-measured 2026-09-23, and it has got worse. 20 sequential streaming requests with a
+  // 0.4s gap, so this is not a concurrency or rate-limit artifact:
+  //     aws/anthropic/bedrock-claude-opus-5-5    5/20 failed (all 408, 0.6-3.0s)
+  //     azure/anthropic/claude-opus-5-5          0/20 failed
+  // Concurrent 30-request runs agree: aws opus-5 5/30, aws opus-5-5 4/30, both azure 0/30.
+  // Affects every Anthropic model on the aws/ prefix, no other provider prefix.
   //
   // It bites hardest when starting a session, which is why picking a non-AWS model first
   // and switching afterwards appeared to "fix" it: `opencode run` retries and rides out a
-  // 1-failure burst (2425 of 2466 bursts are a single failure, longest is 3), but the
-  // first request of a new session has no retry to hide behind.
+  // 1-failure burst, but the first request of a new session has no retry to hide behind.
   //
   // Switch back once the gateway's AWS route is fixed -- the model itself is identical.
-  "model": "nvidia-inference/opus-5-azure",
+  //
+  // Thinking control, verified on the gateway 2026-09-23: newer Anthropic models
+  // (opus-5-5, opus-5, opus-4-8, opus-4-7, sonnet-5) now HARD 400 on `reasoning_effort`
+  // with "thinking.type.enabled is not supported for this model, use
+  // thinking.type.adaptive and output_config.effort". So every `variants` entry on those
+  // models was a guaranteed 400 and has been removed; they think adaptively instead.
+  // `thinking: {type: adaptive}` is also rejected on Azure; only bare `output_config`
+  // is accepted there, and it is then SILENTLY DROPPED (a bogus effort value passes, and
+  // median completion tokens are identical at low vs max). On the AWS route
+  // output_config.effort IS validated and honoured (low 1280 / medium 1492 / max 20000
+  // median completion tokens), so steerable effort and a reliable route are currently
+  // mutually exclusive for Opus 5.5. Older opus-4-6 / sonnet-4-6 / haiku-4-5 still honour
+  // plain `reasoning_effort` on Azure and keep their variants.
+  "model": "nvidia-inference/opus-5-5-azure",
   "small_model": "nvidia-inference/haiku-4-5-azure",
   // The hidden system agents (compaction, summary) send a toolless request over
   // history that contains tool-call/tool-result blocks. Anthropic-on-Bedrock and

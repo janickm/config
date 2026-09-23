@@ -1,7 +1,8 @@
 {
-  "lastChangelogVersion": "0.82.0",
+  "lastChangelogVersion": "0.87.1",
   "defaultProvider": "nvidia-inference",
-  "defaultModel": "aws/anthropic/bedrock-claude-opus-5",
-  "theme": "dark",
-  "defaultThinkingLevel": "medium"
+  "defaultModel": "azure/anthropic/claude-opus-5-5",
+  "theme": "opencode",
+  "defaultThinkingLevel": "medium",
+  "hideThinkingBlock": false
 }
