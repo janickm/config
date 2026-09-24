@@ -1,0 +1,9 @@
+auto_activate_base: false
+add_anaconda_token: true
+restore_free_channel: false
+default_channels:
+  - https://repo.anaconda.cloud/repo/main
+  - https://repo.anaconda.cloud/repo/r
+  - https://repo.anaconda.cloud/repo/msys2
+channels:
+  - conda-forge
