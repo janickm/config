@@ -1,0 +1,92 @@
+#!/bin/bash
+# mosh-tsh -- mosh to a host reachable only through Teleport (tsh).
+#
+# WHY THIS IS NOT JUST `mosh --ssh="tsh ssh"`
+#   mosh needs two channels: a TCP/SSH leg to start mosh-server, and then a
+#   bidirectional UDP flow for the session itself. `tsh ssh` can do the first
+#   but forwards TCP only (-L/-R/-D); it has no UDP forwarding at all. So mosh
+#   over tsh is impossible without tunnelling the datagrams over TCP.
+#
+#   This script does that, with socat on both ends:
+#
+#     mosh-client <--UDP--> socat(local) <--TCP via tsh -L--> socat(remote) <--UDP--> mosh-server
+#
+# HONEST CAVEAT, READ THIS
+#   mosh's whole design assumes an unreliable datagram channel: it recovers from
+#   loss and reordering itself, which is why it survives roaming and bad links.
+#   Wrapping that in TCP puts a reliable, head-of-line-blocking, retransmitting
+#   transport *underneath* it, so the two congestion-control loops fight. On a
+#   good link this works fine. On the flaky link where you actually want mosh,
+#   it can behave worse than plain ssh.
+#
+#   Prefer, in order:
+#     1. mosh over Tailscale        real UDP, no relay      mosh user@host
+#     2. tmux over tsh ssh          no UDP needed           tsh-tmux host
+#     3. this script                last resort
+#
+# USAGE
+#   mosh-tsh <user@host> [--port N]
+#
+# REQUIREMENTS
+#   socat on BOTH ends, mosh on both ends, a valid tsh cert (`tsh status`).
+
+set -euo pipefail
+
+TARGET="${1:-}"
+[ -n "$TARGET" ] || { echo "usage: $(basename "$0") <user@host>" >&2; exit 2; }
+shift || true
+
+LOCAL_TCP=${MOSH_TSH_PORT:-60010}
+REMOTE_TCP=$((LOCAL_TCP + 1))
+LOCAL_UDP=$((LOCAL_TCP + 2))
+
+cleanup() {
+  [ -n "${SOCAT_PID:-}" ] && kill "$SOCAT_PID" 2>/dev/null || true
+  [ -n "${TSH_PID:-}" ] && kill "$TSH_PID" 2>/dev/null || true
+  [ -n "${RELAY_PID:-}" ] && kill "$RELAY_PID" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+command -v socat >/dev/null || { echo "mosh-tsh: socat required locally" >&2; exit 1; }
+command -v mosh-client >/dev/null || { echo "mosh-tsh: mosh-client required" >&2; exit 1; }
+
+if ! tsh status >/dev/null 2>&1; then
+  echo "mosh-tsh: no valid Teleport session. Run: tsh-login-remote" >&2
+  exit 1
+fi
+
+echo "mosh-tsh: starting mosh-server on $TARGET ..." >&2
+# -t forces a TTY; mosh-server needs one to report its port and key.
+CONNECT=$(tsh ssh -t "$TARGET" \
+  "command -v socat >/dev/null || { echo NEED_SOCAT; exit 1; }; \
+   mosh-server new -s -c 256 -l LANG=en_US.UTF-8 2>/dev/null | grep '^MOSH CONNECT'" \
+  2>/dev/null | tr -d '\r' | grep '^MOSH CONNECT' || true)
+
+if [ -z "$CONNECT" ]; then
+  echo "mosh-tsh: could not start mosh-server (is socat+mosh installed there?)" >&2
+  exit 1
+fi
+
+MOSH_PORT=$(echo "$CONNECT" | awk '{print $3}')
+MOSH_KEY=$(echo "$CONNECT" | awk '{print $4}')
+echo "mosh-tsh: mosh-server on UDP $MOSH_PORT" >&2
+
+# Remote: bridge TCP -> the mosh-server UDP port. Backgrounded on the far side.
+tsh ssh "$TARGET" \
+  "setsid socat TCP-LISTEN:${REMOTE_TCP},reuseaddr,fork UDP:127.0.0.1:${MOSH_PORT} \
+   >/dev/null 2>&1 & echo started" >/dev/null 2>&1 &
+RELAY_PID=$!
+sleep 2
+
+# Forward the remote TCP port to a local one, through Teleport.
+tsh ssh -N -L "${LOCAL_TCP}:127.0.0.1:${REMOTE_TCP}" "$TARGET" >/dev/null 2>&1 &
+TSH_PID=$!
+sleep 3
+
+# Local: present a UDP endpoint for mosh-client, carried over that TCP forward.
+socat -T15 UDP-LISTEN:${LOCAL_UDP},reuseaddr,fork TCP:127.0.0.1:${LOCAL_TCP} >/dev/null 2>&1 &
+SOCAT_PID=$!
+sleep 1
+
+echo "mosh-tsh: attaching (UDP $LOCAL_UDP -> TCP $LOCAL_TCP -> tsh -> $MOSH_PORT)" >&2
+MOSH_KEY="$MOSH_KEY" exec mosh-client 127.0.0.1 "$LOCAL_UDP"

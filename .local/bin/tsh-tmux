@@ -1,0 +1,32 @@
+#!/bin/bash
+# tsh-tmux -- persistent shell on a Teleport-only host, without mosh.
+#
+# WHY
+#   mosh cannot work over `tsh`: mosh needs a UDP datagram channel and tsh
+#   forwards TCP only. tmux gives you the part of mosh you actually care about
+#   over a proxied connection: the session survives the client dropping, so a
+#   lost cert, closed laptop or flaky link does not lose your work.
+#
+#   Use plain `mosh user@host` when the host is on the tailnet (real UDP, better
+#   experience). Use this when only Teleport is available.
+#
+# USAGE
+#   tsh-tmux <user@host> [session-name]
+#
+#   Default session name is "main". Reattaches if it exists, creates it if not,
+#   so running this twice drops you back into the same shell.
+
+set -euo pipefail
+
+TARGET="${1:-}"
+[ -n "$TARGET" ] || { echo "usage: $(basename "$0") <user@host> [session]" >&2; exit 2; }
+SESSION="${2:-main}"
+
+if ! tsh status >/dev/null 2>&1; then
+  echo "tsh-tmux: no valid Teleport session. Run: tsh-login-remote" >&2
+  exit 1
+fi
+
+# -A: attach if the session exists, otherwise create it. One flag, no race.
+# -t: tsh needs an explicit TTY request for an interactive program.
+exec tsh ssh -t "$TARGET" "tmux new-session -A -s '${SESSION}'"
