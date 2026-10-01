@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # mosh-tsh -- mosh to a host reachable only through Teleport (tsh).
 #
 # WHY THIS IS NOT JUST `mosh --ssh="tsh ssh"`
@@ -19,6 +19,10 @@
 #   good link this works fine. On the flaky link where you actually want mosh,
 #   it can behave worse than plain ssh.
 #
+#   socat also does not frame datagrams on the TCP leg, so under load two mosh
+#   packets can be coalesced/split. mosh authenticates every packet and drops
+#   the broken ones, so this costs retransmits, not correctness.
+#
 #   Prefer, in order:
 #     1. mosh over Tailscale        real UDP, no relay      mosh user@host
 #     2. tmux over tsh ssh          no UDP needed           tsh-tmux host
@@ -27,66 +31,144 @@
 # USAGE
 #   mosh-tsh <user@host> [--port N]
 #
+#   --port N   base port (default 60010, or $MOSH_TSH_PORT). Uses N (local TCP),
+#              N+1 (remote TCP, loopback only) and N+2 (local UDP).
+#
 # REQUIREMENTS
-#   socat on BOTH ends, mosh on both ends, a valid tsh cert (`tsh status`).
+#   mosh and socat on both ends, a valid tsh cert (`tsh status`).
+#   Works on Debian and NixOS. The remote login shell may be bash, zsh or
+#   fish; remote commands always run under /bin/sh.
 
 set -euo pipefail
 
-TARGET="${1:-}"
-[ -n "$TARGET" ] || { echo "usage: $(basename "$0") <user@host>" >&2; exit 2; }
-shift || true
+PROG=$(basename "$0")
+die() { echo "$PROG: $*" >&2; exit 1; }
 
-LOCAL_TCP=${MOSH_TSH_PORT:-60010}
-REMOTE_TCP=$((LOCAL_TCP + 1))
-LOCAL_UDP=$((LOCAL_TCP + 2))
+TARGET=""
+BASE_PORT=${MOSH_TSH_PORT:-60010}
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --port) [ $# -ge 2 ] || die "--port needs a value"; BASE_PORT=$2; shift 2 ;;
+    --port=*) BASE_PORT=${1#--port=}; shift ;;
+    -h|--help) sed -n '2,/^$/s/^# \{0,1\}//p' "$0"; exit 0 ;;
+    -*) die "unknown option: $1" ;;
+    *) [ -z "$TARGET" ] || die "unexpected argument: $1"; TARGET=$1; shift ;;
+  esac
+done
+[ -n "$TARGET" ] || { echo "usage: $PROG <user@host> [--port N]" >&2; exit 2; }
+[[ "$BASE_PORT" =~ ^[1-9][0-9]*$ ]] && [ "$BASE_PORT" -le 65533 ] || die "bad port: $BASE_PORT"
 
-cleanup() {
-  [ -n "${SOCAT_PID:-}" ] && kill "$SOCAT_PID" 2>/dev/null || true
-  [ -n "${TSH_PID:-}" ] && kill "$TSH_PID" 2>/dev/null || true
-  [ -n "${RELAY_PID:-}" ] && kill "$RELAY_PID" 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
+LOCAL_TCP=$BASE_PORT
+REMOTE_TCP=$((BASE_PORT + 1))
+LOCAL_UDP=$((BASE_PORT + 2))
+REMOTE_LANG=${MOSH_TSH_LANG:-C.UTF-8}
 
-command -v socat >/dev/null || { echo "mosh-tsh: socat required locally" >&2; exit 1; }
-command -v mosh-client >/dev/null || { echo "mosh-tsh: mosh-client required" >&2; exit 1; }
+# pkill/pgrep pattern for the remote relay. The [x] trick keeps the pattern
+# from matching the remote `sh -c` that carries it.
+RELAY_PAT="TCP-LISTEN:[${REMOTE_TCP:0:1}]${REMOTE_TCP:1},"
+
+# ---------------------------------------------------------------- local deps
+command -v tsh >/dev/null || die "tsh required locally"
+command -v mosh-client >/dev/null || die "mosh-client required locally"
+command -v socat >/dev/null || die "socat required locally"
 
 if ! tsh status >/dev/null 2>&1; then
-  echo "mosh-tsh: no valid Teleport session. Run: tsh-login-remote" >&2
-  exit 1
+  die "no valid Teleport session. Run: tsh-login-remote"
 fi
 
-echo "mosh-tsh: starting mosh-server on $TARGET ..." >&2
-# -t forces a TTY; mosh-server needs one to report its port and key.
-CONNECT=$(tsh ssh -t "$TARGET" \
-  "command -v socat >/dev/null || { echo NEED_SOCAT; exit 1; }; \
-   mosh-server new -s -c 256 -l LANG=en_US.UTF-8 2>/dev/null | grep '^MOSH CONNECT'" \
-  2>/dev/null | tr -d '\r' | grep '^MOSH CONNECT' || true)
+# Run a POSIX sh script on the remote, independent of the login shell
+# (bash/zsh/fish). Shipping it base64-encoded sidesteps every quoting
+# difference between those shells.
+remote_sh() {
+  local script=$1; shift
+  local b64
+  b64=$(printf '%s\n' "$script" | base64 | tr -d '\n')
+  tsh ssh "$@" "$TARGET" "echo $b64 | base64 -d | /bin/sh"
+}
 
+# Prologue for remote scripts: make nix-installed tools visible even when the
+# remote shell was started without a login profile.
+REMOTE_PATH='PATH="$PATH:/run/current-system/sw/bin:/etc/profiles/per-user/$(id -un)/bin:$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin"; export PATH'
+
+# ---------------------------------------------------------------- cleanup
+SOCAT_PID=""
+TSH_PID=""
+REMOTE_STARTED=""
+cleanup() {
+  trap - EXIT INT TERM
+  [ -n "$SOCAT_PID" ] && kill "$SOCAT_PID" 2>/dev/null || true
+  [ -n "$TSH_PID" ] && kill "$TSH_PID" 2>/dev/null || true
+  if [ -n "$REMOTE_STARTED" ]; then
+    remote_sh "pkill -f \"$RELAY_PAT\" 2>/dev/null; true" </dev/null >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# ---------------------------------------------------------------- remote side
+# One round trip: check deps, start mosh-server on loopback, start the
+# TCP->UDP relay (detached via setsid), print the MOSH CONNECT line.
+START_SCRIPT="
+$REMOTE_PATH
+command -v socat >/dev/null 2>&1 || { echo \"MOSH_TSH_ERR socat not found\"; exit 1; }
+command -v mosh-server >/dev/null 2>&1 || { echo \"MOSH_TSH_ERR mosh-server not found\"; exit 1; }
+pkill -f \"$RELAY_PAT\" 2>/dev/null
+out=\$(mosh-server new -i 127.0.0.1 -c 256 -l LANG=$REMOTE_LANG 2>&1)
+line=\$(echo \"\$out\" | grep \"^MOSH CONNECT\" | head -n 1)
+if [ -z \"\$line\" ]; then echo \"MOSH_TSH_ERR mosh-server failed:\"; echo \"\$out\"; exit 1; fi
+set -- \$line
+L=TCP-LISTEN
+setsid socat \$L:$REMOTE_TCP,bind=127.0.0.1,reuseaddr,fork UDP:127.0.0.1:\$3 </dev/null >/dev/null 2>&1 &
+sleep 1
+pgrep -f \"$RELAY_PAT\" >/dev/null 2>&1 || { echo \"MOSH_TSH_ERR remote socat relay did not start (port $REMOTE_TCP busy?)\"; exit 1; }
+echo \"\$line\"
+"
+
+echo "$PROG: starting mosh-server on $TARGET ..." >&2
+REMOTE_STARTED=1
+# -t: mosh-server is happiest with a TTY on the bootstrap session.
+OUT=$(remote_sh "$START_SCRIPT" -t 2>&1 | tr -d '\r' || true)
+
+CONNECT=$(grep '^MOSH CONNECT' <<<"$OUT" | head -n 1 || true)
 if [ -z "$CONNECT" ]; then
-  echo "mosh-tsh: could not start mosh-server (is socat+mosh installed there?)" >&2
+  echo "$PROG: could not start remote side:" >&2
+  { grep -A50 '^MOSH_TSH_ERR' <<<"$OUT" || echo "$OUT"; } | sed 's/^MOSH_TSH_ERR /  /' >&2
   exit 1
 fi
 
-MOSH_PORT=$(echo "$CONNECT" | awk '{print $3}')
-MOSH_KEY=$(echo "$CONNECT" | awk '{print $4}')
-echo "mosh-tsh: mosh-server on UDP $MOSH_PORT" >&2
+read -r _ _ MOSH_PORT MOSH_KEY_VAL <<<"$CONNECT"
+echo "$PROG: mosh-server on remote UDP $MOSH_PORT" >&2
 
-# Remote: bridge TCP -> the mosh-server UDP port. Backgrounded on the far side.
-tsh ssh "$TARGET" \
-  "setsid socat TCP-LISTEN:${REMOTE_TCP},reuseaddr,fork UDP:127.0.0.1:${MOSH_PORT} \
-   >/dev/null 2>&1 & echo started" >/dev/null 2>&1 &
-RELAY_PID=$!
-sleep 2
-
-# Forward the remote TCP port to a local one, through Teleport.
-tsh ssh -N -L "${LOCAL_TCP}:127.0.0.1:${REMOTE_TCP}" "$TARGET" >/dev/null 2>&1 &
+# ---------------------------------------------------------------- tunnel
+# Forward the remote relay port to a local one, through Teleport.
+tsh ssh -N -L "127.0.0.1:${LOCAL_TCP}:127.0.0.1:${REMOTE_TCP}" "$TARGET" </dev/null >/dev/null 2>&1 &
 TSH_PID=$!
-sleep 3
+
+# Wait for the forward to listen (up to ~15s) instead of a fixed sleep.
+port_listening() {
+  if command -v ss >/dev/null; then
+    ss -ltnH "sport = :$1" 2>/dev/null | grep -q .
+  else
+    (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
+  fi
+}
+for _ in $(seq 1 30); do
+  kill -0 "$TSH_PID" 2>/dev/null || die "tsh port forward exited (local port $LOCAL_TCP busy?)"
+  port_listening "$LOCAL_TCP" && break
+  sleep 0.5
+done
+port_listening "$LOCAL_TCP" || die "tsh port forward on $LOCAL_TCP did not come up"
 
 # Local: present a UDP endpoint for mosh-client, carried over that TCP forward.
-socat -T15 UDP-LISTEN:${LOCAL_UDP},reuseaddr,fork TCP:127.0.0.1:${LOCAL_TCP} >/dev/null 2>&1 &
+socat -T60 "UDP-LISTEN:${LOCAL_UDP},bind=127.0.0.1,reuseaddr,fork" "TCP:127.0.0.1:${LOCAL_TCP}" >/dev/null 2>&1 &
 SOCAT_PID=$!
-sleep 1
+sleep 0.5
+kill -0 "$SOCAT_PID" 2>/dev/null || die "local socat failed (UDP port $LOCAL_UDP busy?)"
 
-echo "mosh-tsh: attaching (UDP $LOCAL_UDP -> TCP $LOCAL_TCP -> tsh -> $MOSH_PORT)" >&2
-MOSH_KEY="$MOSH_KEY" exec mosh-client 127.0.0.1 "$LOCAL_UDP"
+echo "$PROG: attaching (UDP $LOCAL_UDP -> TCP $LOCAL_TCP -> tsh -> $MOSH_PORT)" >&2
+# Not exec: we need the EXIT trap to tear down socat, tsh and the remote relay.
+set +e
+MOSH_KEY="$MOSH_KEY_VAL" mosh-client 127.0.0.1 "$LOCAL_UDP"
+RC=$?
+exit "$RC"
