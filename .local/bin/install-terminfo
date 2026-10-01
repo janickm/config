@@ -1,0 +1,63 @@
+#!/bin/bash
+# install-terminfo -- install the terminfo entries this account needs.
+#
+# WHY
+#   Ghostty ships xterm-ghostty in its own terminfo database, not in ncurses.
+#   Connect to a host that lacks the entry and you get, on every login:
+#
+#     warning: Could not set up terminal.
+#     warning: TERM environment variable set to 'xterm-ghostty'.
+#     warning: Using fallback terminal type 'xterm-256color'.
+#
+#   The fallback works but loses capabilities (truecolor, styled underlines,
+#   some key sequences). tsh ssh is noisiest about it because it warns up front.
+#
+#   This installs into ~/.terminfo, so no root is required.
+#
+# USAGE
+#   install-terminfo            # install everything in ~/.terminfo-src
+#   install-terminfo <file.ti>  # install one entry
+#
+# ADDING AN ENTRY
+#   On a machine that has it:
+#       infocmp -x xterm-ghostty > ~/.terminfo-src/xterm-ghostty.ti
+#   then commit it, and this script picks it up on every other machine.
+#
+# NOTE
+#   tic may print "older tic versions may treat the description field as an
+#   alias". That is advisory, not a failure; the entry still compiles.
+
+set -euo pipefail
+
+SRC_DIR="${HOME}/.terminfo-src"
+DEST="${HOME}/.terminfo"
+
+if ! command -v tic >/dev/null 2>&1; then
+  echo "install-terminfo: tic not found (install ncurses-bin)" >&2
+  exit 1
+fi
+
+mkdir -p "$DEST"
+
+files=()
+if [ $# -gt 0 ]; then
+  files=("$@")
+else
+  [ -d "$SRC_DIR" ] || { echo "install-terminfo: no $SRC_DIR" >&2; exit 1; }
+  while IFS= read -r f; do files+=("$f"); done < <(find "$SRC_DIR" -name '*.ti' -type f | sort)
+fi
+
+[ ${#files[@]} -gt 0 ] || { echo "install-terminfo: nothing to install" >&2; exit 1; }
+
+rc=0
+for f in "${files[@]}"; do
+  name="$(basename "$f" .ti)"
+  if tic -x -o "$DEST" "$f" 2>&1 | grep -v 'older tic versions' >&2; then :; fi
+  if infocmp "$name" >/dev/null 2>&1; then
+    echo "ok      $name"
+  else
+    echo "FAILED  $name" >&2
+    rc=1
+  fi
+done
+exit "$rc"
