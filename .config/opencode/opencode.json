@@ -1,7 +1,7 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    "superpowers@git+https://github.com/obra/superpowers.git"
+  "plugins": [
+    "superpowers@git+https://github.com/obra/superpowers.git#v7.0.0"
   ],
   "provider": {
     "nvidia-inference": {
