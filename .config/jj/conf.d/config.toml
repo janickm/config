@@ -8,7 +8,7 @@ email = "janick.martinez.esturo@gmail.com"
 default-command = "log"
 diff-editor = ":builtin"
 merge-editor = ":builtin"
-diff-formatter = ["difft", "--color=always", "--sort-paths", "$left", "$right"]
+diff-formatter = ["difft", "--color=always", "--sort-paths", "--width=$width", "$left", "$right"]
 
 [aliases]
 rebase-all = ["rebase", "-s", "roots(trunk()..mutable())", "-d", "trunk()"]
