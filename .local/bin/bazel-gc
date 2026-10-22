@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+#
+# bazel-gc: list and delete orphaned Bazel output bases.
+#
+# Every workspace path gets its own output base under --output_user_root, and a
+# herdr-style worktree flow creates one per worktree. Bazel never reclaims them: a
+# worktree deleted with `git worktree remove` leaves its output base behind forever,
+# holding tens of GB of bazel-out. On this machine 51 such bases held 211 GB.
+#
+# Bazel's own GC flags do NOT cover this. --experimental_disk_cache_gc_max_size
+# bounds --disk_cache, and --repo_contents_cache_gc_max_age bounds the shared repo
+# contents cache. Neither one ever looks at an output base. Hence this script.
+#
+# Classification, from the DO_NOT_BUILD_HERE file Bazel writes into each base
+# recording the workspace path it belongs to:
+#
+#   SERVER  a bazel server process currently has this base open. NEVER deleted:
+#           removing a base under a live server corrupts its in-memory state and
+#           the next command in that workspace fails in confusing ways.
+#   LIVE    recorded workspace still exists. Left alone.
+#   STALE   recorded workspace is gone. The main target: safe to delete.
+#   ORPHAN  no DO_NOT_BUILD_HERE at all.
+#
+# ORPHAN NEEDS CARE, and the --min-age guard below exists because of it. Bazel
+# removes DO_NOT_BUILD_HERE early during its own cleanup, and a plain `rm -rf` of a
+# base unlinks files in readdir order, so a base being deleted RIGHT NOW is
+# indistinguishable from one orphaned months ago: both are a bare execroot/ with no
+# marker. Deleting into a concurrent rm is harmless, but classifying a live
+# worktree's base as ORPHAN because someone is mid-cleanup is not. Anything touched
+# within --min-age (default 60m) is therefore held back and reported separately.
+
+set -uo pipefail
+
+MIN_AGE_MIN=60
+ASSUME_YES=0
+WITH_SIZE=1
+CLASSES="STALE"
+OUTPUT_USER_ROOT=""
+
+usage() {
+    cat <<'EOF'
+Usage: bazel-gc [options]
+
+List orphaned Bazel output bases and optionally delete them.
+
+Options:
+  -a, --all            Consider ORPHAN bases too, not just STALE ones.
+                       ORPHAN = no DO_NOT_BUILD_HERE marker. See --min-age.
+  -n, --min-age MIN    Hold back bases modified within MIN minutes (default: 60).
+                       Guards against deleting into a concurrent cleanup.
+  -y, --yes            Delete without the confirmation prompt.
+  -s, --no-size        Skip du. Much faster on a large cache, no sizes shown.
+  -r, --root PATH      Output user root (default: autodetected, then
+                       ~/.cache/bazel/_bazel_$USER).
+  -l, --list           List every base including LIVE and SERVER, then exit.
+  -h, --help           This message.
+
+Exit codes: 0 ok (deleted or nothing to do), 1 error, 2 user declined.
+
+Examples:
+  bazel-gc                 # show STALE bases, prompt before deleting
+  bazel-gc -a              # include ORPHAN bases older than 60m
+  bazel-gc -l              # full inventory, delete nothing
+  bazel-gc -a -n 240 -y    # unattended, conservative 4h age guard
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -a|--all)      CLASSES="STALE ORPHAN"; shift ;;
+        -n|--min-age)  MIN_AGE_MIN="${2:?--min-age needs a value}"; shift 2 ;;
+        -y|--yes)      ASSUME_YES=1; shift ;;
+        -s|--no-size)  WITH_SIZE=0; shift ;;
+        -r|--root)     OUTPUT_USER_ROOT="${2:?--root needs a value}"; shift 2 ;;
+        -l|--list)     CLASSES="ALL"; shift ;;
+        -h|--help)     usage; exit 0 ;;
+        *)             echo "bazel-gc: unknown option: $1" >&2; usage >&2; exit 1 ;;
+    esac
+done
+
+case "$MIN_AGE_MIN" in
+    ''|*[!0-9]*) echo "bazel-gc: --min-age must be a whole number of minutes" >&2; exit 1 ;;
+esac
+
+# Locate the output user root. Asking a bazel binary is authoritative but costs a
+# server start, so only do it when the conventional path is absent.
+if [ -z "$OUTPUT_USER_ROOT" ]; then
+    OUTPUT_USER_ROOT="${HOME}/.cache/bazel/_bazel_${USER}"
+    if [ ! -d "$OUTPUT_USER_ROOT" ] && command -v bazel >/dev/null 2>&1; then
+        detected=$(bazel info output_base 2>/dev/null | head -1)
+        [ -n "$detected" ] && OUTPUT_USER_ROOT=$(dirname "$detected")
+    fi
+fi
+
+if [ ! -d "$OUTPUT_USER_ROOT" ]; then
+    echo "bazel-gc: no output user root at $OUTPUT_USER_ROOT" >&2
+    echo "bazel-gc: pass one with --root" >&2
+    exit 1
+fi
+
+# Output bases a running server holds open. Read from the live process list rather
+# than from lock files: a lock file survives a crashed server and would make us skip
+# a base that is genuinely free.
+#
+# Restricted to processes whose command line actually names a bazel binary, and our
+# own process tree is excluded: this script mentions every candidate base in its own
+# argv and output, so a naive match reports each one as busy and deletes nothing.
+running_servers() {
+    local p
+    for p in $(pgrep -f "bazel" 2>/dev/null); do
+        [ "$p" = "$$" ] && continue
+        [ "$p" = "$PPID" ] && continue
+        tr '\0' '\n' < "/proc/$p/cmdline" 2>/dev/null |
+            grep -oP "(?<=${OUTPUT_USER_ROOT##*/}/)[0-9a-f]{32}"
+    done 2>/dev/null | sort -u
+}
+
+servers=$(running_servers)
+
+now=$(date +%s)
+cutoff=$((now - MIN_AGE_MIN * 60))
+
+declare -a sel_dirs=() held_dirs=()
+inventory=""
+n_server=0 n_live=0 n_stale=0 n_orphan=0
+
+for path in "$OUTPUT_USER_ROOT"/*/; do
+    [ -d "$path" ] || continue
+    dir=$(basename "$path")
+
+    # install/ holds unpacked Bazel binaries shared by every base, cache/ is the repo
+    # contents cache that bases symlink into. Deleting either breaks every workspace.
+    case "$dir" in install|cache) continue ;; esac
+
+    ws=$(cat "$path/DO_NOT_BUILD_HERE" 2>/dev/null)
+    mtime=$(stat -c %Y "$path" 2>/dev/null) || continue
+
+    if echo "$servers" | grep -qx "$dir"; then
+        class=SERVER; n_server=$((n_server + 1))
+    elif [ -z "$ws" ]; then
+        class=ORPHAN; n_orphan=$((n_orphan + 1))
+    elif [ -d "$ws" ]; then
+        class=LIVE; n_live=$((n_live + 1))
+    else
+        class=STALE; n_stale=$((n_stale + 1))
+    fi
+
+    inventory+="${class}|${mtime}|${dir}|${ws:-<no marker>}"$'\n'
+
+    case " $CLASSES " in
+        *" $class "*)
+            if [ "$mtime" -gt "$cutoff" ]; then
+                held_dirs+=("$dir|$class|$mtime|${ws:-<no marker>}")
+            else
+                sel_dirs+=("$dir|$class|$mtime|${ws:-<no marker>}")
+            fi
+            ;;
+    esac
+done
+
+fmt_size() {
+    [ "$WITH_SIZE" -eq 1 ] || { printf '%-8s' "-"; return; }
+    local s
+    s=$(du -xs -B1 "$OUTPUT_USER_ROOT/$1" 2>/dev/null | cut -f1)
+    printf '%-8s' "$(numfmt --to=iec "${s:-0}")"
+}
+
+show() {
+    local line dir class mtime ws
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        IFS='|' read -r dir class mtime ws <<<"$line"
+        printf '  %s %-7s %-12s %-34s %s\n' \
+            "$(fmt_size "$dir")" "$class" \
+            "$(date -d "@$mtime" '+%Y-%m-%d')" "$dir" "$ws"
+    done
+}
+
+echo "Output user root: $OUTPUT_USER_ROOT"
+printf 'Bases: %d server, %d live, %d stale, %d orphan\n\n' \
+    "$n_server" "$n_live" "$n_stale" "$n_orphan"
+
+if [ "$CLASSES" = "ALL" ]; then
+    printf '%-10s %-7s %-12s %-34s %s\n' SIZE CLASS MTIME DIR WORKSPACE
+    printf '%s' "$inventory" | sort -t'|' -k1,1 -k2,2rn |
+        awk -F'|' '{printf "%s|%s|%s|%s\n", $3, $1, $2, $4}' | show
+    exit 0
+fi
+
+if [ "${#held_dirs[@]}" -gt 0 ]; then
+    echo "Held back, modified within ${MIN_AGE_MIN}m (possible concurrent cleanup):"
+    printf '%s\n' "${held_dirs[@]}" | show
+    echo
+fi
+
+if [ "${#sel_dirs[@]}" -eq 0 ]; then
+    echo "Nothing to reclaim."
+    exit 0
+fi
+
+echo "Deletable (${CLASSES// /, }), untouched for at least ${MIN_AGE_MIN}m:"
+printf '%-10s %-7s %-12s %-34s %s\n' SIZE CLASS MTIME DIR WORKSPACE
+printf '%s\n' "${sel_dirs[@]}" | show
+
+if [ "$WITH_SIZE" -eq 1 ]; then
+    total=0
+    for entry in "${sel_dirs[@]}"; do
+        s=$(du -xs -B1 "$OUTPUT_USER_ROOT/${entry%%|*}" 2>/dev/null | cut -f1)
+        total=$((total + ${s:-0}))
+    done
+    printf '\nTotal: %s across %d bases\n' "$(numfmt --to=iec "$total")" "${#sel_dirs[@]}"
+fi
+
+if [ "$ASSUME_YES" -ne 1 ]; then
+    printf '\nDelete these %d output bases? [y/N] ' "${#sel_dirs[@]}"
+    # Prefer the terminal so the prompt still works when stdout is piped to a pager,
+    # but fall back to stdin where there is no controlling tty (cron, CI, a heredoc).
+    # Test by opening: /dev/tty passes -r even with no controlling terminal attached,
+    # where the open then fails with ENXIO. The braces matter, a redirection error on
+    # a bare `exec` is reported by the shell before its own 2>/dev/null takes effect.
+    if { exec 3</dev/tty; } 2>/dev/null; then
+        read -r reply <&3 || reply=""
+        exec 3<&-
+    else
+        read -r reply || reply=""
+    fi
+    case "$reply" in
+        [yY]|[yY][eE][sS]) ;;
+        *) echo "Aborted."; exit 2 ;;
+    esac
+fi
+
+echo
+failed=0
+for entry in "${sel_dirs[@]}"; do
+    dir="${entry%%|*}"
+    target="$OUTPUT_USER_ROOT/$dir"
+
+    # Re-check for a server: one can start between the scan and here, and a slow du
+    # over a few hundred GB leaves a wide window.
+    if running_servers | grep -qx "$dir"; then
+        echo "  skip $dir (a bazel server now holds it)"
+        continue
+    fi
+
+    # Bazel marks output bases read-only, so rm needs the write bit restored first.
+    printf '  rm %s ... ' "$dir"
+    chmod -R u+w "$target" 2>/dev/null
+    if rm -rf "$target"; then
+        echo "ok"
+    else
+        echo "FAILED"
+        failed=$((failed + 1))
+    fi
+done
+
+echo
+df -h "$OUTPUT_USER_ROOT" | tail -1
+[ "$failed" -eq 0 ] || { echo "bazel-gc: $failed deletion(s) failed" >&2; exit 1; }
