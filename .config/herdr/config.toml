@@ -149,7 +149,7 @@ remove_worktree = "prefix+shift+k"
 # sidebar_min_width = 18
 
 # Maximum sidebar width when expanded (columns)
-# sidebar_max_width = 36
+sidebar_max_width = 50
 
 # Terminal width at or below which Herdr uses the mobile single-column layout.
 # Increase this for foldables, tablets, or wide phone terminals.
@@ -205,6 +205,15 @@ delivery = "system"
 [ui.toast.clipboard]
 # enabled = true
 # position = "bottom-center"
+
+[ui.sidebar.agents]
+row_gap = 0
+# default: [["state_icon","machine","workspace","tab"],["agent"]]
+rows = [["state_icon", "machine", "workspace"]]
+
+[ui.sidebar.spaces]
+row_gap = 0
+rows = [["state_icon","workspace"],["branch","git_status"]]
 
 # Play sounds when agents change state in background workspaces
 [ui.sound]
