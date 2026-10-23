@@ -11,6 +11,8 @@
 -- at ~/.claude rather than wherever the shell was. Nearest .git/.jj wins, so inside a
 -- repo the cwd becomes the repo root and pickers/grep stay project-wide.
 -- Set `vim.g.startup_chdir = false` to disable; `:CdRoot` does the same on demand.
+-- Returns the repo root (nearest dir containing .git/.jj) for `path`, or the
+-- file's own directory when it is not inside a repo. nil if the dir does not exist.
 local function root_of(path)
   local dir = vim.fn.isdirectory(path) == 1 and path or vim.fs.dirname(path)
   if vim.fn.isdirectory(dir) == 0 then
@@ -20,6 +22,7 @@ local function root_of(path)
   return marker and vim.fs.dirname(marker) or dir
 end
 
+-- cd to root_of(path); no-op for an empty path or when already there.
 local function chdir(path)
   if path == "" then
     return
@@ -30,10 +33,13 @@ local function chdir(path)
   end
 end
 
+-- :CdRoot, manual version of the startup chdir for the current buffer.
 vim.api.nvim_create_user_command("CdRoot", function()
   chdir(vim.api.nvim_buf_get_name(0))
 end, { desc = "cd to the current file's repo root, or its own directory" })
 
+-- On startup, cd to the root of the first file argument (runs once, only when
+-- nvim was given files).
 vim.api.nvim_create_autocmd("VimEnter", {
   group = vim.api.nvim_create_augroup("startup_chdir", { clear = true }),
   once = true,
@@ -44,9 +50,24 @@ vim.api.nvim_create_autocmd("VimEnter", {
   end,
 })
 
+-- Hide diagnostics (markdownlint, marksman, ...) in markdown buffers.
+-- Re-enable per buffer with `<leader>ud` (toggle diagnostics).
+-- Runs on every markdown buffer as its filetype is set; linters and LSPs still
+-- run, their results are just not displayed.
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("markdown_no_diagnostics", { clear = true }),
+  pattern = { "markdown" },
+  callback = function(args)
+    vim.diagnostic.enable(false, { bufnr = args.buf })
+  end,
+})
+
 -- Prevent Copilot LSP from running on files in the encrypted data folder
 local blocked_dir = vim.fn.expand("$HOME") .. "/Private/"
 
+-- Whenever an LSP client attaches, detach it again if it is Copilot and the
+-- buffer lives under ~/Private/, so private file contents are never sent to it.
+-- The detach is deferred with vim.schedule, so it runs after the attach completes.
 vim.api.nvim_create_autocmd("LspAttach", {
   group = vim.api.nvim_create_augroup("block_copilot_sensitive_dirs", { clear = true }),
   callback = function(args)
